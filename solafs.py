@@ -134,6 +134,9 @@ def _FindBestAlignmentConv(overlap_waveform, source_waveform):
   for chan in range(nchans):
     sum_sqs = np.cumsum(source_waveform[:, chan]**2)
     denom = np.sqrt(sum_sqs[len_ov - 1:] - np.hstack([0., sum_sqs[:-len_ov]]))
+    # Warning: the following line sometimes involves a division by zero.
+    # The final term below may be zero and denom may also contain zeros.
+    # It seems to occur when the window, hop and shift sizes are set to around 0.1x the default values.
     cos_dist += np.correlate(source_waveform[:, chan], overlap_waveform[:, chan]) / denom / np.sqrt(sum(overlap_waveform[:, chan]**2))
   return np.argmax(cos_dist)
 
@@ -164,6 +167,10 @@ def main(argv):
   time_factor = args.scale
   max_duration = args.max_duration
 
+  # Reparameterise in terms of overlap time rather than hop time.
+  # Note: assumes hop_sec < window_sec so that overlap_sec > 0.
+  overlap_sec = window_sec - hop_sec
+
   sr, data = scipy.io.wavfile.read(args.input)
   input_duration = len(data)/float(sr)
   if max_duration > 0.0 and input_duration > max_duration:
@@ -179,7 +186,7 @@ def main(argv):
 
   data_out = Solafs(data,
                     int(round(window_sec * sr)),
-                    int(round(hop_sec * sr)),
+                    int(round(overlap_sec * sr)),
                     int(round(max_shift * sr)),
                     time_mapping_fn)
 
